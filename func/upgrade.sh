@@ -67,6 +67,14 @@ upgrade_welcome_message_log() {
     if [ "$RELEASE_BRANCH" = "release" ] && [ "$DEBUG_MODE" != "true" ]; then
         echo "BUILD TYPE:       Production release"
     fi
+    echo 
+    echo "INSTALLER OPTIONS:"
+    echo "============================================================================="
+    echo "Save installer log:                           $UPGRADE_SAVE_LOG"
+    echo "Installer logging level:                      $UPGRADE_LOG_LEVEL"
+    echo "Send notification on upgrade complete:        $UPGRADE_SEND_NOTIFICATION"
+    echo "Send email notification on upgrade complete:  $UPGRADE_SEND_EMAIL"
+    echo "Send installed log output to admin email:     $UPGRADE_SEND_EMAIL_LOG"
     echo "============================================================================="
     echo 'STARTING UPGRADE FROM VERSION v'$VERSION'...                                 '
     echo "============================================================================="
@@ -74,20 +82,6 @@ upgrade_welcome_message_log() {
 }
 
 upgrade_complete_message() {
-    # Add notification to panel if variable is set to true or is not set
-    if [ -z "$UPGRADE_SEND_NOTIFICATION" ] || [ "$UPGRADE_SEND_NOTIFICATION" = "true" ]; then 
-        if [ "$RELEASE_BRANCH" != "beta" ] && [ "$DEBUG_MODE" = "true" ]; then
-            # Send notifications for development releases
-            $HESTIA/bin/v-add-user-notification admin 'Development build installed' '<b>Version:</b> '$new_version'.<br><b>Code Branch:</b> '$RELEASE_BRANCH'<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a> and feel free to share your feedback on our <a href="https://forum.hestiacp.com" target="_new">discussion forum</a>.<br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
-        elif [ "$RELEASE_BRANCH" = "beta" ]; then
-            # Send feedback notification for beta releases
-            $HESTIA/bin/v-add-user-notification admin 'Thank you for testing Hestia Control Panel '$new_version' beta!' '<b>Please share your feedback with our development team through our <a href="https://forum.hestiacp.com" target="_new">discussion forum</a>.<br><br>Found a bug? Report it on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a>!</b><br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
-        else
-            # Send normal upgrade complete notification for stable releases
-            $HESTIA/bin/v-add-user-notification admin 'Upgrade complete' 'Your server has been updated to Hestia Control Panel <b>v'$new_version'</b>.<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a>.<br><br><b>Have a wonderful day!</b><br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
-        fi
-    fi
-
     # Echo message to console output
     echo
     echo "============================================================================="
@@ -130,11 +124,63 @@ upgrade_step_message() {
     fi
 }
 
-upgrade_send_log_to_admin() {
-    if [ "$UPGRADE_SAVE_LOG" = "true" ] && [ "$UPGRADE_SEND_EMAIL" = "true" ]; then
+upgrade_send_notification_to_email () {
+    if [ "$UPGRADE_SEND_EMAIL" = "true" ]; then
+        # Retrieve admin email address, sendmail path, and message temp file path
         admin_email=$(v-list-user admin json | grep "CONTACT" | cut -d'"' -f4)
         send_mail="$HESTIA/web/inc/mail-wrapper.php"
-        cat $LOG | $send_mail -s "Hestia Control Panel" $admin_email
+        message_tmp_file="/tmp/hestia-upgrade-complete.txt"
+
+        # Create temporary file
+        touch $message_tmp_file
+
+        # Write message to file
+        echo "$HOSTNAME has been upgraded from Hestia Control Panel v$VERSION to v${new_version}." >> $message_tmp_file
+        if [ "$UPGRADE_SAVE_LOG" = "true" ]; then
+            echo "Installation log: $LOG" >> $message_tmp_file
+            echo "" >> $message_tmp_file
+        fi
+        echo "What's new: https://github.com/hestiacp/hestiacp/blob/$RELEASE_BRANCH/CHANGELOG.md" >> $message_tmp_file
+        echo  >> $message_tmp_file
+        echo "What to do if you run into issues:" >> $message_tmp_file
+        echo "- Check our forums for possible solutions: https://forum.hestiacp.com" >> $message_tmp_file
+        echo "- File an issue report on GitHub: https://github.com/hestiacp/hestiacp/issues" >> $message_tmp_file
+        echo "" >> $message_tmp_file
+        echo "==================================================="  >> $message_tmp_file
+        echo "Have a wonderful day," >> $message_tmp_file
+        echo "The Hestia Control Panel development team" >> $message_tmp_file
+        
+        # Read back message from file and pass through to sendmail
+        cat $message_tmp_file | $send_mail -s "Hestia Control Panel Update Installed" $admin_email
+        rm -f $message_tmp_file
+    fi
+}
+
+upgrade_send_log_to_email() {
+    if [ "$UPGRADE_SAVE_LOG" = "true" ] && [ "$UPGRADE_SEND_EMAIL_LOG" = "true" ]; then
+        admin_email=$(v-list-user admin json | grep "CONTACT" | cut -d'"' -f4)
+        send_mail="$HESTIA/web/inc/mail-wrapper.php"
+        cat $LOG | $send_mail -s "Hestia Control Panel Upgrade Log" $admin_email
+    fi
+}
+
+upgrade_send_notification_to_panel () {
+    # Add notification to panel if variable is set to true or is not set
+    if [ -z "$UPGRADE_SEND_NOTIFICATION" ] || [ "$UPGRADE_SEND_NOTIFICATION" = "true" ]; then 
+        if [ "$RELEASE_BRANCH" != "beta" ] && [ "$DEBUG_MODE" = "true" ]; then
+            # Send notifications for development releases
+            $HESTIA/bin/v-add-user-notification admin 'Development build installed' '<b>Version:</b> '$new_version'.<br><b>Code Branch:</b> '$RELEASE_BRANCH'<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a> and feel free to share your feedback on our <a href="https://forum.hestiacp.com" target="_new">discussion forum</a>.<br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
+        else
+            # Send normal upgrade complete notification for stable releases
+            $HESTIA/bin/v-add-user-notification admin 'Upgrade complete' 'Your server has been updated to Hestia Control Panel <b>v'$new_version'</b>.<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a>.<br><br><b>Have a wonderful day!</b><br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
+        fi
+    fi
+
+    # Send beta feedback notifications regardless of value set in UPGRADE_SET_NOTIFICATION
+    # as we need to add visibility for user feedback channels.
+    if [ "$RELEASE_BRANCH" = "beta" ] && [ -z "$UPGRADE_SEND_NOTIFICATION" ] || [ "$UPGRADE_SEND_NOTIFICATION" = "false" ]; then
+        # Send feedback notification for beta releases
+        $HESTIA/bin/v-add-user-notification admin 'Thank you for testing Hestia Control Panel '$new_version' beta!' '<b>Please share your feedback with our development team through our <a href="https://forum.hestiacp.com" target="_new">discussion forum</a>.<br><br>Found a bug? Report it on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a>!</b><br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
     fi
 }
 
@@ -585,6 +631,154 @@ upgrade_restart_services() {
         echo "      - hestia"
     fi
     $BIN/v-restart-service hestia $restart
+}
+
+upgrade_health_check() {
+    echo
+    echo "[ ! ] Performing system health check before proceeding with upgrade..."
+    echo
+    # Perform basic health check against hestia.conf to ensure that
+    # system variables exist and are set to expected defaults.
+
+    if [ -z "$VERSION" ]; then
+        export VERSION="1.1.0"
+        echo "[ WARNING ] Unable to detect installed version of Hestia Control Panel."
+        echo "            Setting version to $VERSION and processing upgrade steps."
+        echo
+    fi
+
+    # Release branch
+    if [ -z "$RELEASE_BRANCH" ]; then
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: RELEASE_BRANCH ('release')"
+        fi
+        $BIN/v-change-sys-config-value 'RELEASE_BRANCH' 'release'
+    fi
+
+    # Webmail alias
+    if [ ! -z "$IMAP_SYSTEM" ]; then
+        if [ -z "$WEBMAIL_ALIAS" ]; then
+            if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                echo "[ WARNING ] Adding missing variable to hestia.conf: WEBMAIL_ALIAS ('webmail')"
+            fi
+            $BIN/v-change-sys-config-value 'WEBMAIL_ALIAS' 'webmail'
+        fi
+    fi
+
+    # phpMyAdmin/phpPgAdmin alias
+    if [ ! -z "$DB_SYSTEM" ]; then
+        if [ "$DB_SYSTEM" = "mysql" ]; then
+            if [ -z "$DB_PMA_ALIAS" ]; then 
+                if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                    echo "[ WARNING ] Adding missing variable to hestia.conf: DB_PMA_ALIAS ('phpMyAdmin')"
+                fi
+                $BIN/v-change-sys-config-value 'DB_PMA_ALIAS' 'phpMyAdmin'
+            fi
+        fi
+        if [ "$DB_SYSTEM" = "pgsql" ]; then
+            if [ -z "$DB_PGA_ALIAS" ]; then 
+                if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                    echo "[ WARNING ] Adding missing variable to hestia.conf: DB_PGA_ALIAS ('phpPgAdmin')"
+                fi
+                $BIN/v-change-sys-config-value 'DB_PGA_ALIAS' 'phpPgAdmin'
+            fi
+        fi
+    fi
+
+    # Backup compression level
+    if [ -z "$BACKUP_GZIP" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: BACKUP_GZIP ('9')"
+        fi
+        $BIN/v-change-sys-config-value 'BACKUP_GZIP' '9'
+    fi
+
+    # Theme
+    if [ -z "$THEME" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: THEME ('default')"
+        fi
+        $BIN/v-change-sys-theme 'default'
+    fi
+
+    # Default language
+    if [ -z "$LANGUAGE" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: LANGUAGE ('en')"
+        fi
+        $BIN/v-change-sys-language 'en'
+    fi
+
+    # Disk Quota
+    if [ -z "$DISK_QUOTA" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: DISK_QUOTA ('no')"
+        fi
+        $BIN/v-change-sys-config-value 'DISK_QUOTA' 'no'
+    fi
+
+    # CRON daemon
+    if [ -z "$CRON_SYSTEM" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: CRON_SYSTEM ('cron')"
+        fi
+        $BIN/v-change-sys-config-value 'CRON_SYSTEM' 'cron'
+    fi
+
+    # Backend port
+    if [ -z "$BACKEND_PORT" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: BACKEND_PORT ('8083')"
+        fi
+        $BIN/v-change-sys-port '8083' >/dev/null 2>&1
+    fi
+
+    # Upgrade: Save Log files
+    if [ -z "$UPGRADE_SAVE_LOG" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: UPGRADE_SAVE_LOG ('true')"
+        fi
+        $BIN/v-change-sys-config-value 'UPGRADE_SAVE_LOG' 'true'
+    fi
+
+    # Upgrade: Send panel notification
+    if [ -z "$UPGRADE_SEND_NOTIFICATION" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: UPGRADE_SEND_NOTIFICATION ('true')"
+        fi
+        $BIN/v-change-sys-config-value 'UPGRADE_SEND_NOTIFICATION' 'true'
+    fi
+
+    # Upgrade: Send email notification
+    if [ -z "$UPGRADE_SEND_EMAIL" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: UPGRADE_SEND_EMAIL ('true')"
+        fi
+        $BIN/v-change-sys-config-value 'UPGRADE_SEND_EMAIL' 'true'
+    fi
+
+    # Upgrade: Send email notification
+    if [ -z "$UPGRADE_SEND_EMAIL_LOG" ]; then 
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: UPGRADE_SEND_EMAIL_LOG ('false')"
+        fi
+        $BIN/v-change-sys-config-value 'UPGRADE_SEND_EMAIL_LOG' 'false'
+    fi
+
+    # File Manager
+    if [ -z "$FILE_MANAGER" ]; then
+        if [ "$DEBUG_MODE" = "true" ] || [ if "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "[ WARNING ] Adding missing variable to hestia.conf: FILE_MANAGER ('true')"
+            echo "[ WARNING ] Installing File Manager components..."
+        fi
+        $BIN/v-add-sys-filemanager quiet
+    fi
+    echo 
+    echo "[ * ] Health check complete. Proceeding with upgrade from $VERSION to $new_version..."
+    echo
+
+    # Refresh configuration now that variables have been set
+    upgrade_refresh_config
 }
 
 upgrade_perform_cleanup() {

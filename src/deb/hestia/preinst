@@ -14,7 +14,7 @@ if [ ! -f /etc/apt/apt.conf.d/80-retries ]; then
 fi
 
 # Validate version number and replace if different
-HESTIA_V=$(dpkg -s hestia | grep -i version | awk '{ print $2 }')
+export HESTIA_V=$(dpkg -s hestia | grep -i version | awk '{ print $2 }')
 
 if [ ! "$HESTIA_V" = "$VERSION" ]; then
     sed -i "s/VERSION=.*/VERSION='$HESTIA_V'/g" /usr/local/hestia/conf/hestia.conf
