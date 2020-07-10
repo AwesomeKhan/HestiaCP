@@ -3,40 +3,6 @@
 # Hestia Control Panel upgrade script for target version 1.2.0
 
 #######################################################################################
-#######                             Upgrade switches                            #######
-#######################################################################################
-
-# Logging and notifications
-UPGRADE_LOG_LEVEL='normal'
-UPGRADE_SAVE_LOG='true'
-UPGRADE_ADMIN_SEND_NOTIFICATION_PANEL='false'
-UPGRADE_ADMIN_SEND_NOTIFICATION_EMAIL='false'
-
-# Domain templates
-UPGRADE_UPDATE_WEB_TEMPLATES='false'
-UPGRADE_UPDATE_MAIL_TEMPLATES='false'
-UPGRADE_UPDATE_DNS_TEMPLATES='false'
-
-# phpMyAdmin
-UPGRADE_UPDATE_PHPMYADMIN='true'
-
-# File Manager
-UPGRADE_UPDATE_FILEMANAGER='false'
-UPGRADE_UPDATE_FILEMANAGER_CONFIG='false'
-
-# Post installation clean-up
-# NOTE: If domain templates are updated, these will override to true.
-UPGRADE_REBUILD_USERS='true'
-UPGRADE_RESTART_SERVICES='true'
-
-#######################################################################################
-#######                        3rd Party Software Updates                       #######
-#######################################################################################
-
-# phpMyAdmin
-pma_v='5.0.2'
-
-#######################################################################################
 #######                      Place additional commands below.                   #######
 #######################################################################################
 

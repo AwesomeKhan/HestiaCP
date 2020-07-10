@@ -455,6 +455,7 @@ if [ "$HESTIA_B" = true ]; then
     # Move needed directories
     cd $BUILD_DIR/hestiacp-$branch
     mv bin func install web ../hestia_$HESTIA_V/usr/local/hestia/
+    download_file $GIT_REP/hestia/upgrade.conf ../hestia_$HESTIA_V/usr/local/hestia/install/upgrade/upgrade.conf
 
     # Set permission
     cd ../hestia_$HESTIA_V/usr/local/hestia/bin

@@ -7,73 +7,134 @@
 #####################################################################
 is_debug_build() {
     if [ "$RELEASE_BRANCH" != "release" ]; then
-        UPDATE_LOG_LEVEL="verbose"
         DEBUG_MODE="true"
+    fi
+    if [ "$DEBUG_MODE" = "true" ]; then
+        unset UPGRADE_LOG_LEVEL
+        set UPGRADE_LOG_LEVEL="verbose"
     fi
 }
 
 upgrade_welcome_message() {
     echo
-    echo '                _   _           _   _        ____ ____                  '
-    echo '               | | | | ___  ___| |_(_) __ _ / ___|  _ \                 '
-    echo '               | |_| |/ _ \/ __| __| |/ _` | |   | |_) |                '
-    echo '               |  _  |  __/\__ \ |_| | (_| | |___|  __/                 '
-    echo '               |_| |_|\___||___/\__|_|\__,_|\____|_|                    '
-    echo "                                                                        "
-    echo "                  Hestia Control Panel Software Update                  "
-    echo "                            Version: 1.2.0                              "
-    if [ "$DEBUG_MODE" = "true" ]; then
-        echo "                          PRERELEASE VERSION                            "
-        echo "                    Not intended for production use!                    "
+    echo '                  _   _           _   _        ____ ____                      '
+    echo '                 | | | | ___  ___| |_(_) __ _ / ___|  _ \                     '
+    echo '                 | |_| |/ _ \/ __| __| |/ _` | |   | |_) |                    '
+    echo '                 |  _  |  __/\__ \ |_| | (_| | |___|  __/                     '
+    echo '                 |_| |_|\___||___/\__|_|\__,_|\____|_|                        '
+    echo "                                                                              "
+    echo "                    Hestia Control Panel Software Update                      "
+    echo "                               Version: ${new_version}                         "
+    if [ "$RELEASE_BRANCH" = "beta" ] && [ "$DEBUG_MODE" = "true" ]; then
+        echo "                                BETA RELEASE                               "
     fi
-    echo "========================================================================"
+    if [ "$RELEASE_BRANCH" != "beta" ] && [ "$DEBUG_MODE" = "true" ]; then
+        echo "                            DEVELOPMENT SNAPSHOT                           "
+        echo "                      NOT INTENDED FOR PRODUCTION USE                      "
+        echo "                            USE AT YOUR OWN RISK                           "
+    fi
     echo
-    echo "[ ! ] IMPORTANT INFORMATION:                                              "
+    echo "=============================================================================="
     echo
-    echo "Default configuration files and templates may be modified or replaced   "
-    echo "during the upgrade process. You may restore these files from:           "
+    echo "[ ! ] IMPORTANT INFORMATION:                                                  "
+    echo
+    echo "Default configuration files and templates may be modified or replaced         "
+    echo "during the upgrade process. You may restore these files from:                 "
     echo ""
-    echo "Backup directory: $HESTIA_BACKUP/                                       "
+    echo "Backup directory: $HESTIA_BACKUP/                                             "
+    echo "Installation log: $LOG                                                        "
     echo
-    echo "This process may take a few minutes, please wait...                     "
+    echo "This process may take a few minutes, please wait...                           "
     echo
-    echo "========================================================================"
+    echo "=============================================================================="
     echo
 }
 
+upgrade_welcome_message_log() {
+    echo "=============================================================================="
+    echo "Hestia Control Panel Software Update Log"
+    echo "=============================================================================="
+    echo 'VERSION:          '$new_version''
+    echo 'RELEASE BRANCH:   '$RELEASE_BRANCH''
+    if [ "$RELEASE_BRANCH" = "beta" ] && [ "$DEBUG_MODE" = "true" ]; then
+        echo "BUILD TYPE:       Beta release"
+        echo "DEBUG MODE:       On"
+    fi
+    if [ "$RELEASE_BRANCH" != "beta" ] && [ "$DEBUG_MODE" = "true" ]; then
+        echo "BUILD TYPE:       Development snapshot"
+        echo "DEBUG MODE:       On"
+    fi
+    if [ "$RELEASE_BRANCH" = "release" ] && [ "$DEBUG_MODE" != "true" ]; then
+        echo "BUILD TYPE:       Production release"
+    fi
+    echo "============================================================================="
+    echo 'STARTING UPGRADE FROM VERSION v'$VERSION'...                                 '
+    echo "============================================================================="
+    echo 
+}
+
 upgrade_complete_message() {
-    # Add notification to panel
-    if [ "$UPGRADE_ADMIN_SEND_NOTIFICATION_PANEL" = "true" ]; then 
-        $HESTIA/bin/v-add-user-notification admin 'Upgrade complete' 'Your server has been updated to Hestia Control Panel <b>v'$new_version'</b>.<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a> or e-mail <a href="mailto:info@hestiacp.com?Subject="['$new_version'] Bug Report: ">info@hestiacp.com</a>.<br><br><b>Have a wonderful day!</b><br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
+    # Add notification to panel if variable is set to true or is not set
+    if [ -z "$UPGRADE_ADMIN_SEND_NOTIFICATION_PANEL" ] || [ "$UPGRADE_ADMIN_SEND_NOTIFICATION_PANEL" = "true" ]; then 
+        if [ "$RELEASE_BRANCH" != "beta" ] && [ "$DEBUG_MODE" = "true" ]; then
+            # Send notifications for development releases
+            $HESTIA/bin/v-add-user-notification admin 'Development build installed' '<b>Version:</b> '$new_version'.<br><b>Code Branch:</b> '$RELEASE_BRANCH'<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a> and feel free to share your feedback on our <a href="https://forum.hestiacp.com" target="_new">discussion forum</a>.<br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
+        elif [ "$RELEASE_BRANCH" = "beta" ]; then
+            # Send feedback notification for beta releases
+            $HESTIA/bin/v-add-user-notification admin 'Thank you for testing Hestia Control Panel '$new_version' beta!' '<b>Please share your feedback with our development team through our <a href="https://forum.hestiacp.com" target="_new">discussion forum</a>.<br><br>Found a bug? Report it on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a>!</b><br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
+        else
+            # Send normal upgrade complete notification for stable releases
+            $HESTIA/bin/v-add-user-notification admin 'Upgrade complete' 'Your server has been updated to Hestia Control Panel <b>v'$new_version'</b>.<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a>.<br><br><b>Have a wonderful day!</b><br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
+        fi
     fi
 
     # Echo message to console output
     echo
-    echo "========================================================================"
+    echo "============================================================================="
     echo
-    echo "Upgrade complete! If you encounter any issues or find a bug,            "
-    echo "please take a moment to report it to us on GitHub at the URL below:     "
-    echo "https://github.com/hestiacp/hestiacp/issues                             "
+    echo "Upgrade complete! If you encounter any issues or find a bug,                 "
+    echo "please take a moment to report it to us on GitHub at the URL below:          "
+    echo "https://github.com/hestiacp/hestiacp/issues                                  "
     echo
-    echo "We hope that you enjoy using this version of Hestia Control Panel,      "
-    echo "have a wonderful day!                                                   "
+    echo "We hope that you enjoy using this version of Hestia Control Panel,           "
+    echo "have a wonderful day!                                                        "
     echo
-    echo "Sincerely,                                                              "
-    echo "The Hestia Control Panel development team                               "
+    echo "Sincerely,                                                                   "
+    echo "The Hestia Control Panel development team                                    "
     echo
-    echo "Web:      https://www.hestiacp.com/                                     "
-    echo "Forum:    https://forum.hestiacp.com/                                   "
-    echo "GitHub:   https://github.com/hestiacp/hestiacp/                        "
-    echo "E-mail:   info@hestiacp.com                                             "
+    echo "Web:      https://www.hestiacp.com/                                          "
+    echo "Forum:    https://forum.hestiacp.com/                                        "
+    echo "GitHub:   https://github.com/hestiacp/hestiacp/                              "
+    echo "E-mail:   info@hestiacp.com                                                  "
     echo 
-    echo "Made with love & pride by the open-source community around the world.   "
+    echo "Made with love & pride by the open-source community around the world.        "
     echo
     echo
 }
 
+upgrade_complete_message_log() {
+    echo 
+    echo "============================================================================="
+    echo "UPGRADE COMPLETE.                                                            "
+    echo "Please report any issues on GitHub:                                          "
+    echo "https://github.com/hestiacp/hestiacp/issues                                  "
+    echo "============================================================================="
+    echo 
+}
+
 upgrade_step_message() {
     if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-        echo "[ VERBOSE ] Processing upgrade steps from previous version ($VERSION to $new_version)"
+        echo "============================================================================="
+        echo "[ DEBUG ] Processing upgrade steps from version: v$VERSION..."
+        echo "============================================================================="
+    fi
+}
+
+upgrade_send_log_to_admin() {
+    if [ "$UPGRADE_ADMIN_SEND_NOTIFICATION_EMAIL" = "true" ]; then
+        admin_email=$(v-list-user admin json | grep "CONTACT" | cut -d'"' -f4)
+        send_mail="$HESTIA/web/inc/mail-wrapper.php"
+        cat $LOG | $send_mail -s "Hestia Control Panel" $admin_email
     fi
 }
 
@@ -131,17 +192,17 @@ upgrade_init_logging() {
 
 upgrade_start_backup() {
     echo "[ * ] Backing up existing templates and configuration files..."
-    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+    if [ "$DEBUG_MODE" = "true" ] || [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
         echo "      - Packages"
     fi
     cp -rf $HESTIA/data/packages/* $HESTIA_BACKUP/packages/
 
-    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+    if [ "$DEBUG_MODE" = "true" ] || [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
         echo "      - Templates"
     fi
     cp -rf $HESTIA/data/templates/* $HESTIA_BACKUP/templates/
 
-    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+    if [ "$DEBUG_MODE" = "true" ] || [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
         echo "      - Configuration files"
     fi
 
@@ -189,6 +250,9 @@ upgrade_start_backup() {
 upgrade_refresh_config() {
     source /usr/local/hestia/conf/hestia.conf
     source /usr/local/hestia/func/main.sh
+    if [ "$DEBUG_MODE" = "true" ]; then
+        UPGRADE_LOG_LEVEL="verbose"
+    fi
 }
 
 upgrade_start_routine() {
@@ -222,8 +286,8 @@ upgrade_start_routine() {
         source $HESTIA/install/upgrade/versions/previous/0.9.8-29.sh
         source $HESTIA/install/upgrade/versions/previous/1.00.0-190618.sh
         source $HESTIA/install/upgrade/versions/previous/1.0.1.sh
-        upgrade_step_message
         VERSION="1.0.1"
+        upgrade_step_message
         upgrade_set_version $VERSION
         upgrade_refresh_config
     fi
@@ -409,102 +473,121 @@ upgrade_set_version() {
 }
 
 upgrade_rebuild_users() {
-    if [ "$UPGRADE_UPDATE_WEB_TEMPLATES" = "true" ] || [ "$UPGRADE_UPDATE_MAIL_TEMPLATES" = "true" ] || [ "$UPGRADE_UPDATE_DNS_TEMPLATES" = "true" ]; then
-        UPGRADE_REBUILD_USERS='true'
-        if [ "$UPGRADE_REBUILD_USERS" = "true" ]; then
-            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                echo "[ * ] Rebuilding user accounts and domains:"
-            else
-                echo "[ * ] Rebuilding user accounts and domains, this may take a few minutes..."
+    if [ "$UPGRADE_REBUILD_USERS" = "true" ]; then
+        if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]  || [ "$DEBUG_MODE" = "true" ]; then
+            echo "[ * ] Rebuilding user accounts and domains:"
+        else
+            echo "[ * ] Rebuilding user accounts and domains, this may take a few minutes..."
+        fi
+        for user in $($HESTIA/bin/v-list-sys-users plain); do
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                echo "      - $user:"
             fi
-            for user in $($HESTIA/bin/v-list-sys-users plain); do
-                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                    echo "      - $user..."
-                fi
-                if [ ! -z "$WEB_SYSTEM" ]; then
+            if [ ! -z "$WEB_SYSTEM" ]; then
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                    echo "      ---- Web domains..."
+                    $BIN/v-rebuild-web-domains $user 'no'
+                else
                     $BIN/v-rebuild-web-domains $user 'no' >/dev/null 2>&1
                 fi
-                if [ ! -z "$DNS_SYSTEM" ]; then
+            fi
+            if [ ! -z "$DNS_SYSTEM" ]; then
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                    echo "      ---- DNS zones..."
+                    $BIN/v-rebuild-dns-domains $user 'no'
+                else
                     $BIN/v-rebuild-dns-domains $user 'no' >/dev/null 2>&1
                 fi
-                if [ ! -z "$MAIL_SYSTEM" ]; then 
+            fi
+            if [ ! -z "$MAIL_SYSTEM" ]; then 
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                    echo "      ---- Mail domains..."
+                    $BIN/v-rebuild-mail-domains $user 'no'
+                else
                     $BIN/v-rebuild-mail-domains $user 'no' >/dev/null 2>&1
                 fi
-            done
-        fi
+            fi
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                echo "      ---- User account configuration..."
+                $BIN/v-rebuild-user $user 'no'
+            else
+                $BIN/v-rebuild-user $user 'no' >/dev/null 2>&1
+            fi
+        done
     fi
 }
 
 upgrade_restart_services() {
-    if [ "$UPGRADE_UPDATE_WEB_TEMPLATES" = "true" ] || [ "$UPGRADE_UPDATE_MAIL_TEMPLATES" = "true" ] || [ "$UPGRADE_UPDATE_DNS_TEMPLATES" = "true" ]; then
-    UPGRADE_RESTART_SERVICES='true'
-        if [ "$UPGRADE_RESTART_SERVICES" = 'true' ]; then
-            # Refresh user interface theme
-            if [ "$THEME" ]; then
-                if [ "$THEME" != "default" ]; then
-                    echo "[ * ] Applying user interface updates..."
-                    $BIN/v-change-sys-theme $THEME
-                fi
-            fi
-
-            echo "[ * ] Restarting services..."
-            sleep 5
-            if [ ! -z "$MAIL_SYSTEM" ]; then
-                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                    echo "      - $MAIL_SYSTEM"
-                fi
-                $BIN/v-restart-mail $restart
-            fi
-            if [ ! -z "$WEB_SYSTEM" ]; then
-                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                    echo "      - $WEB_SYSTEM"
-                fi
-                $BIN/v-restart-web $restart
-            fi
-            if [ ! -z "$PROXY_SYSTEM" ]; then
-                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                    echo "      - $PROXY_SYSTEM"
-                fi
-                $BIN/v-restart-proxy $restart
-            fi
-            if [ ! -z "$DNS_SYSTEM" ]; then
-                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                    echo "      - $DNS_SYSTEM"
-                fi
-                $BIN/v-restart-dns $restart
-            fi
-            for v in `ls /etc/php/`; do
-                if [ -e /etc/php/$v/fpm ]; then
-                    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                        echo "      - php$v-fpm"
-                    fi
-                    $BIN/v-restart-service php$v-fpm $restart
-                fi
-            done
-            if [ ! -z "$FTP_SYSTEM" ]; then
-                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                    echo "      - $FTP_SYSTEM"
-                fi
-                $BIN/v-restart-ftp $restart
-            fi
-            if [ ! -z "$FIREWALL_EXTENSION" ]; then
-                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                    echo "      - $FIREWALL_EXTENSION"
-                fi
-                $BIN/v-restart-service $FIREWALL_EXTENSION yes
-            fi
-            # Restart SSH daemon service
-            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-                echo "      - sshd"
-            fi
-            $BIN/v-restart-service ssh $restart
+    # Refresh user interface theme
+    if [ "$THEME" ]; then
+        if [ "$THEME" != "default" ]; then
+            echo "[ * ] Applying user interface updates..."
+            $BIN/v-change-sys-theme $THEME
         fi
-
-        # Always restart the Hestia Control Panel service
-        if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
-            echo "      - hestia"
-        fi
-        $BIN/v-restart-service hestia $restart
     fi
+
+    if [ "$UPGRADE_RESTART_SERVICES" = "true" ]; then
+        echo "[ * ] Restarting services..."
+        sleep 5
+        if [ ! -z "$MAIL_SYSTEM" ]; then
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                echo "      - $MAIL_SYSTEM"
+            fi
+            $BIN/v-restart-mail $restart
+        fi
+        if [ ! -z "$WEB_SYSTEM" ]; then
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                echo "      - $WEB_SYSTEM"
+            fi
+            $BIN/v-restart-web $restart
+        fi
+        if [ ! -z "$PROXY_SYSTEM" ]; then
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                echo "      - $PROXY_SYSTEM"
+            fi
+            $BIN/v-restart-proxy $restart
+        fi
+        if [ ! -z "$DNS_SYSTEM" ]; then
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                echo "      - $DNS_SYSTEM"
+            fi
+            $BIN/v-restart-dns $restart
+        fi
+        for v in `ls /etc/php/`; do
+            if [ -e /etc/php/$v/fpm ]; then
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                    echo "      - php$v-fpm"
+                fi
+                $BIN/v-restart-service php$v-fpm $restart
+            fi
+        done
+        if [ ! -z "$FTP_SYSTEM" ]; then
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                echo "      - $FTP_SYSTEM"
+            fi
+            $BIN/v-restart-ftp $restart
+        fi
+        if [ ! -z "$FIREWALL_EXTENSION" ]; then
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+                echo "      - $FIREWALL_EXTENSION"
+            fi
+            $BIN/v-restart-service $FIREWALL_EXTENSION yes
+        fi
+        # Restart SSH daemon service
+        if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+            echo "      - sshd"
+        fi
+        $BIN/v-restart-service ssh $restart
+    fi
+
+    # Always restart the Hestia Control Panel service
+    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ] || [ "$DEBUG_MODE" = "true" ]; then
+        echo "      - hestia"
+    fi
+    $BIN/v-restart-service hestia $restart
 }
 
+upgrade_perform_cleanup() {
+    # Remove upgrade configuration file as it's not needed
+    rm -f $HESTIA_INSTALL_DIR/upgrade/upgrade.conf
+}
