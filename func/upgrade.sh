@@ -151,7 +151,7 @@ upgrade_send_notification_to_email () {
         echo "The Hestia Control Panel development team" >> $message_tmp_file
         
         # Read back message from file and pass through to sendmail
-        cat $message_tmp_file | $send_mail -s "Hestia Control Panel Update Installed" $admin_email
+        cat $message_tmp_file | $send_mail -s "Update Installed - v${new_version}" $admin_email
         rm -f $message_tmp_file
     fi
 }
@@ -160,7 +160,7 @@ upgrade_send_log_to_email() {
     if [ "$UPGRADE_SAVE_LOG" = "true" ] && [ "$UPGRADE_SEND_EMAIL_LOG" = "true" ]; then
         admin_email=$(v-list-user admin json | grep "CONTACT" | cut -d'"' -f4)
         send_mail="$HESTIA/web/inc/mail-wrapper.php"
-        cat $LOG | $send_mail -s "Hestia Control Panel Upgrade Log" $admin_email
+        cat $LOG | $send_mail -s "Update Installation Log - v${new_version}" $admin_email
     fi
 }
 
