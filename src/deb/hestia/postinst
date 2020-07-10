@@ -11,6 +11,7 @@ fi
 # Load upgrade functions and refresh variables/configuration
 source /usr/local/hestia/func/upgrade.sh
 upgrade_refresh_config
+LOG="$HESTIA_BACKUP/hst-upgrade-$(date +%d%m%Y%H%M).log"
 
 ###############################################################
 #             Set new version numbers for packages            #
@@ -18,24 +19,40 @@ upgrade_refresh_config
 # Hestia Control Panel
 new_version=$(dpkg -l | awk '$2=="hestia" { print $3 }')
 
-# phpMyAdmin
-pma_v='5.0.2'
-
 ###############################################################
 #               Begin standard upgrade routines               #
 ###############################################################
 
+# Set default verbose output based on release branch
+is_debug_build
+
 # Initialize backup directories
 upgrade_init_backup
+
+# Initialize logging
+upgrade_init_logging
 
 # Set up console display and welcome message
 upgrade_welcome_message
 
+# Back up existing configuration files and templates
+upgrade_start_backup
+
 # Execute version-specific upgrade scripts
 upgrade_start_routine
 
-# Update PHP templates
-update_php_templates
+# Upgrade File Manager and update configuration
+upgrade_filemanager
+update_filemanager_configuration
+
+# Update Web domain templates
+update_web_templates
+
+# Update Mail domain templates
+update_mail_templates
+
+# Update DNS zone templastes
+update_dns_templates
 
 # Upgrade phpMyAdmin if applicable
 upgrade_phpmyadmin

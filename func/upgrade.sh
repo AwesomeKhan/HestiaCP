@@ -5,6 +5,12 @@
 #####################################################################
 #######                Functions & Initialization             #######
 #####################################################################
+is_debug_build() {
+    if [ "$RELEASE_BRANCH" != "release" ]; then
+        UPDATE_LOG_LEVEL="verbose"
+        DEBUG_MODE="true"
+    fi
+}
 
 upgrade_welcome_message() {
     echo
@@ -15,7 +21,11 @@ upgrade_welcome_message() {
     echo '               |_| |_|\___||___/\__|_|\__,_|\____|_|                    '
     echo "                                                                        "
     echo "                  Hestia Control Panel Software Update                  "
-    echo "                            Version: $new_version                       "
+    echo "                            Version: 1.2.0                              "
+    if [ "$DEBUG_MODE" = "true" ]; then
+        echo "                          PRERELEASE VERSION                            "
+        echo "                    Not intended for production use!                    "
+    fi
     echo "========================================================================"
     echo
     echo "[ ! ] IMPORTANT INFORMATION:                                              "
@@ -33,7 +43,9 @@ upgrade_welcome_message() {
 
 upgrade_complete_message() {
     # Add notification to panel
-    $HESTIA/bin/v-add-user-notification admin 'Upgrade complete' 'Your server has been updated to Hestia Control Panel <b>v'$new_version'</b>.<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a> or e-mail <a href="mailto:info@hestiacp.com?Subject="['$new_version'] Bug Report: ">info@hestiacp.com</a>.<br><br><b>Have a wonderful day!</b><br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
+    if [ "$UPGRADE_ADMIN_SEND_NOTIFICATION_PANEL" = "true" ]; then 
+        $HESTIA/bin/v-add-user-notification admin 'Upgrade complete' 'Your server has been updated to Hestia Control Panel <b>v'$new_version'</b>.<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a> or e-mail <a href="mailto:info@hestiacp.com?Subject="['$new_version'] Bug Report: ">info@hestiacp.com</a>.<br><br><b>Have a wonderful day!</b><br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
+    fi
 
     # Echo message to console output
     echo
@@ -59,11 +71,119 @@ upgrade_complete_message() {
     echo
 }
 
+upgrade_step_message() {
+    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+        echo "[ VERBOSE ] Processing upgrade steps from previous version ($VERSION to $new_version)"
+    fi
+}
+
 upgrade_init_backup() {
     # Ensure that backup directories are created
-    mkdir -p $HESTIA_BACKUP/conf/
+    # Hestia Control Panel configuration files
+    mkdir -p $HESTIA_BACKUP/conf/hestia/
+
+    # System services (apache2, nginx, bind9, vsftpd, etc).
+    if [ ! -z "$WEB_SYSTEM" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/$WEB_SYSTEM/
+    fi
+    if [ ! -z "$IMAP_SYSTEM" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/$IMAP_SYSTEM/
+    fi
+    if [ ! -z "$MAIL_SYSTEM" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/$MAIL_SYSTEM/
+    fi
+    if [ ! -z "$DNS_SYSTEM" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/$DNS_SYSTEM/
+    fi
+    if [ ! -z "$PROXY_SYSTEM" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/$PROXY_SYSTEM/
+    fi
+    if [ ! -z "$DB_SYSTEM" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/$DB_SYSTEM/
+    fi
+    if [ ! -z "$FTP_SYSTEM" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/$FTP_SYSTEM/
+    fi
+    if [ ! -z "$FIREWALL_SYSTEM" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/$FIREWALL_SYSTEM/
+    fi
+    if [ ! -z "$FIREWALL_EXTENSION" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/$FIREWALL_EXTENSION/
+    fi
+    if [ -e "/etc/ssh/sshd_config" ]; then
+        mkdir -p $HESTIA_BACKUP/conf/ssh/
+    fi
+
+    # Hosting Packages
     mkdir -p $HESTIA_BACKUP/packages/
+
+    # Domain template files
     mkdir -p $HESTIA_BACKUP/templates/
+}
+
+upgrade_init_logging() {
+    # Set log file path
+    LOG="$HESTIA_BACKUP/hst-upgrade-$(date +%d%m%Y%H%M).log"
+
+    # Create log file
+    touch $LOG
+}
+
+upgrade_start_backup() {
+    echo "[ * ] Backing up existing templates and configuration files..."
+    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+        echo "      - Packages"
+    fi
+    cp -rf $HESTIA/data/packages/* $HESTIA_BACKUP/packages/
+
+    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+        echo "      - Templates"
+    fi
+    cp -rf $HESTIA/data/templates/* $HESTIA_BACKUP/templates/
+
+    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+        echo "      - Configuration files"
+    fi
+
+    # Hestia Control Panel configuration files
+    cp -rf $HESTIA/conf/* $HESTIA_BACKUP/conf/hestia/
+
+    # System service configuration files (apache2, nginx, bind9, vsftpd, etc).
+    if [ ! -z "$WEB_SYSTEM" ]; then
+        cp -f /etc/$WEB_SYSTEM/*.conf $HESTIA_BACKUP/conf/$WEB_SYSTEM/
+        cp -f /etc/$WEB_SYSTEM/conf.d/*.conf $HESTIA_BACKUP/conf/$WEB_SYSTEM/
+    fi
+    if [ ! -z "$PROXY_SYSTEM" ]; then
+        cp -f /etc/$PROXY_SYSTEM/*.conf $HESTIA_BACKUP/conf/$PROXY_SYSTEM/
+        cp -f /etc/$PROXY_SYSTEM/conf.d/*.conf $HESTIA_BACKUP/conf/$PROXY_SYSTEM/
+        cp -f /etc/$PROXY_SYSTEM/conf.d/*.inc $HESTIA_BACKUP/conf/$PROXY_SYSTEM/
+    fi
+    if [ ! -z "$IMAP_SYSTEM" ]; then
+        cp -f /etc/$IMAP_SYSTEM/*.conf $HESTIA_BACKUP/conf/$IMAP_SYSTEM/
+        cp -f /etc/$IMAP_SYSTEM/conf.d/*.conf $HESTIA_BACKUP/conf/$IMAP_SYSTEM/
+    fi
+    if [ ! -z "$MAIL_SYSTEM" ]; then
+        cp -f /etc/$MAIL_SYSTEM/*.conf $HESTIA_BACKUP/conf/$MAIL_SYSTEM/
+    fi
+    if [ ! -z "$DNS_SYSTEM" ]; then
+        if [ "$DNS_SYSTEM" = "bind9" ]; then
+            cp -f /etc/bind/*.conf $HESTIA_BACKUP/conf/$DNS_SYSTEM/
+        fi
+    fi
+    if [ ! -z "$DB_SYSTEM" ]; then
+        cp -f /etc/$DB_SYSTEM/*.cnf $HESTIA_BACKUP/conf/$DB_SYSTEM/
+        cp -f /etc/$DB_SYSTEM/conf.d/*.cnf $HESTIA_BACKUP/conf/$DB_SYSTEM/
+    fi
+    if [ ! -z "$FTP_SYSTEM" ]; then
+        cp -f /etc/$FTP_SYSTEM.conf $HESTIA_BACKUP/conf/$FTP_SYSTEM/
+    fi
+    if [ ! -z "$FIREWALL_EXTENSION" ]; then
+        cp -f /etc/$FIREWALL_EXTENSION/*.conf $HESTIA_BACKUP/conf/$FIREWALL_EXTENSION/
+        cp -f /etc/$FIREWALL_EXTENSION/*.local $HESTIA_BACKUP/conf/$FIREWALL_EXTENSION/
+    fi
+    if [ -e "/etc/ssh/sshd_config" ]; then
+        cp -f /etc/ssh/sshd_config $HESTIA_BACKUP/conf/ssh/sshd_config
+    fi
 }
 
 upgrade_refresh_config() {
@@ -88,6 +208,7 @@ upgrade_start_routine() {
 
     # Ensure that latest upgrade commands are processed if version is the same
     if [ $VERSION = "$new_version" ]; then
+        echo ""
         echo "[ ! ] The latest version of Hestia Control Panel is already installed."
         echo "      Verifying configuration..."
         echo ""
@@ -101,6 +222,7 @@ upgrade_start_routine() {
         source $HESTIA/install/upgrade/versions/previous/0.9.8-29.sh
         source $HESTIA/install/upgrade/versions/previous/1.00.0-190618.sh
         source $HESTIA/install/upgrade/versions/previous/1.0.1.sh
+        upgrade_step_message
         VERSION="1.0.1"
         upgrade_set_version $VERSION
         upgrade_refresh_config
@@ -110,6 +232,7 @@ upgrade_start_routine() {
     if [ $VERSION = "1.0.1" ]; then
         source $HESTIA/install/upgrade/versions/previous/1.0.2.sh
         VERSION="1.0.2"
+        upgrade_step_message
         upgrade_set_version $VERSION
         upgrade_refresh_config
     fi
@@ -118,6 +241,7 @@ upgrade_start_routine() {
     if [ $VERSION = "1.0.2" ]; then
         source $HESTIA/install/upgrade/versions/previous/1.0.3.sh
         VERSION="1.0.3"
+        upgrade_step_message
         upgrade_set_version $VERSION
         upgrade_refresh_config
     fi
@@ -126,6 +250,7 @@ upgrade_start_routine() {
     if [ $VERSION = "1.0.3" ]; then
         source $HESTIA/install/upgrade/versions/previous/1.0.4.sh
         VERSION="1.0.4"
+        upgrade_step_message
         upgrade_set_version $VERSION
         upgrade_refresh_config
     fi
@@ -134,6 +259,7 @@ upgrade_start_routine() {
     if [ $VERSION = "1.0.4" ]; then
         source $HESTIA/install/upgrade/versions/previous/1.0.5.sh
         VERSION="1.0.5"
+        upgrade_step_message
         upgrade_set_version $VERSION
         upgrade_refresh_config
     fi
@@ -142,6 +268,7 @@ upgrade_start_routine() {
     if [ $VERSION = "1.0.5" ]; then
         source $HESTIA/install/upgrade/versions/previous/1.0.6.sh
         VERSION="1.0.6"
+        upgrade_step_message
         upgrade_set_version $VERSION
         upgrade_refresh_config
     fi
@@ -150,6 +277,7 @@ upgrade_start_routine() {
     if [ $VERSION = "1.0.6" ]; then
         source $HESTIA/install/upgrade/versions/previous/1.1.0.sh
         VERSION="1.1.0"
+        upgrade_step_message
         upgrade_set_version $VERSION
         upgrade_refresh_config
     fi
@@ -158,6 +286,7 @@ upgrade_start_routine() {
     if [ $VERSION = "1.1.0" ]; then
         source $HESTIA/install/upgrade/versions/previous/1.1.1.sh
         VERSION="1.1.1"
+        upgrade_step_message
         upgrade_set_version $VERSION
         upgrade_refresh_config
     fi
@@ -166,6 +295,7 @@ upgrade_start_routine() {
     if [ $VERSION = "1.1.1" ] || [ $VERSION = "1.1.2" ]; then
         source $HESTIA/install/upgrade/versions/latest.sh
         VERSION="$new_version"
+        upgrade_step_message
         upgrade_refresh_config
     fi
 
@@ -175,67 +305,96 @@ upgrade_start_routine() {
 }
 
 upgrade_phpmyadmin() {
-    # Check if MariaDB/MySQL is installed on the server before attempting to install or upgrade phpMyAdmin
-    if [ "$DB_SYSTEM" = "mysql" ]; then
-        # Define version check function
-        function version_ge(){ test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1" -o ! -z "$1" -a "$1" = "$2"; }
+    if [ "$UPGRADE_UPDATE_PHPMYADMIN" = "true" ]; then
+        # Check if MariaDB/MySQL is installed on the server before attempting to install or upgrade phpMyAdmin
+        if [ "$DB_SYSTEM" = "mysql" ]; then
+            # Define version check function
+            function version_ge(){ test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1" -o ! -z "$1" -a "$1" = "$2"; }
 
-        pma_release_file=$(ls /usr/share/phpmyadmin/RELEASE-DATE-* 2>/dev/null |tail -n 1)
-        if version_ge "${pma_release_file##*-}" "$pma_v"; then
-            echo "[ ! ] phpMyAdmin v${pma_release_file##*-} is already installed, skipping update..."
-        else
-            # Display upgrade information
-            echo "[ * ] Upgrading phpMyAdmin to version v$pma_v..."
-            [ -d /usr/share/phpmyadmin ] || mkdir -p /usr/share/phpmyadmin
+            pma_release_file=$(ls /usr/share/phpmyadmin/RELEASE-DATE-* 2>/dev/null |tail -n 1)
+            if version_ge "${pma_release_file##*-}" "$pma_v"; then
+                echo "[ ! ] phpMyAdmin v${pma_release_file##*-} is already installed, skipping update..."
+            else
+                # Display upgrade information
+                echo "[ * ] Upgrading phpMyAdmin to version v$pma_v..."
+                [ -d /usr/share/phpmyadmin ] || mkdir -p /usr/share/phpmyadmin
 
-            # Download latest phpMyAdmin release
-            wget --quiet https://files.phpmyadmin.net/phpMyAdmin/$pma_v/phpMyAdmin-$pma_v-all-languages.tar.gz
+                # Download latest phpMyAdmin release
+                wget --quiet https://files.phpmyadmin.net/phpMyAdmin/$pma_v/phpMyAdmin-$pma_v-all-languages.tar.gz
 
-            # Unpack files
-            tar xzf phpMyAdmin-$pma_v-all-languages.tar.gz
+                # Unpack files
+                tar xzf phpMyAdmin-$pma_v-all-languages.tar.gz
 
-            # Delete file to prevent error
-            rm -fr /usr/share/phpmyadmin/doc/html
+                # Delete file to prevent error
+                rm -fr /usr/share/phpmyadmin/doc/html
 
-            # Overwrite old files
-            cp -rf phpMyAdmin-$pma_v-all-languages/* /usr/share/phpmyadmin
+                # Overwrite old files
+                cp -rf phpMyAdmin-$pma_v-all-languages/* /usr/share/phpmyadmin
 
-            # Set config and log directory
-            sed -i "s|define('CONFIG_DIR', ROOT_PATH);|define('CONFIG_DIR', '/etc/phpmyadmin/');|" /usr/share/phpmyadmin/libraries/vendor_config.php
-            sed -i "s|define('TEMP_DIR', ROOT_PATH . 'tmp/');|define('TEMP_DIR', '/var/lib/phpmyadmin/tmp/');|" /usr/share/phpmyadmin/libraries/vendor_config.php
+                # Set config and log directory
+                sed -i "s|define('CONFIG_DIR', ROOT_PATH);|define('CONFIG_DIR', '/etc/phpmyadmin/');|" /usr/share/phpmyadmin/libraries/vendor_config.php
+                sed -i "s|define('TEMP_DIR', ROOT_PATH . 'tmp/');|define('TEMP_DIR', '/var/lib/phpmyadmin/tmp/');|" /usr/share/phpmyadmin/libraries/vendor_config.php
 
-            # Create temporary folder and change permissions
-            if [ ! -d /usr/share/phpmyadmin/tmp ]; then
-                mkdir /usr/share/phpmyadmin/tmp
-                chmod 777 /usr/share/phpmyadmin/tmp
+                # Create temporary folder and change permissions
+                if [ ! -d /usr/share/phpmyadmin/tmp ]; then
+                    mkdir /usr/share/phpmyadmin/tmp
+                    chmod 777 /usr/share/phpmyadmin/tmp
+                fi
+
+                # Clean up source files
+                rm -fr phpMyAdmin-$pma_v-all-languages
+                rm -f phpMyAdmin-$pma_v-all-languages.tar.gz
             fi
-
-            # Clean up source files
-            rm -fr phpMyAdmin-$pma_v-all-languages
-            rm -f phpMyAdmin-$pma_v-all-languages.tar.gz
         fi
     fi
 }
 
-update_php_templates() {
-    echo "[ * ] Updating default PHP templates..."
-    # Update default template
-    cp -f $HESTIA_INSTALL_DIR/templates/web/php-fpm/default.tpl \
-        $HESTIA/data/templates/web/php-fpm/default.tpl
+update_web_templates() {
+    if [ "$UPGRADE_UPDATE_WEB_TEMPLATES" = "true" ]; then
+        echo "[ ! ] Updating default web domain templates..."
+        $BIN/v-update-web-templates
+    fi
+}
 
-    # Update no-php template
-    cp -f $HESTIA_INSTALL_DIR/templates/web/php-fpm/no-php.tpl \
-        $HESTIA/data/templates/web/php-fpm/no-php.tpl
+update_mail_templates() {
+    if [ "$UPGRADE_UPDATE_MAIL_TEMPLATES" = "true" ]; then
+        echo "[ ! ] Updating default mail domain templates..."
+        $BIN/v-update-mail-templates
+    fi
+}
 
-    # Update  socket template
-    cp -f $HESTIA_INSTALL_DIR/templates/web/php-fpm/socket.tpl \
-        $HESTIA/data/templates/web/php-fpm/socket.tpl
+update_dns_templates() {
+    if [ "$UPGRADE_UPDATE_DNS_TEMPLATES" = "true" ]; then
+        echo "[ ! ] Updating default DNS zone templates..."
+        $BIN/v-update-dns-templates
+    fi
+}
 
-    for version in $($HESTIA/bin/v-list-sys-php plain); do 
-        echo "[ * ] Updating templates for PHP ${version}..."
-        cp -f $HESTIA_INSTALL_DIR/php-fpm/multiphp.tpl \
-            $HESTIA/data/templates/web/php-fpm/PHP-${version/\./_}.tpl; 
-    done
+upgrade_filemanager() {
+    if [ "$UPGRADE_UPDATE_FILEMANAGER" = "true" ]; then
+        FILE_MANAGER_CHECK=$(cat $HESTIA/conf/hestia.conf | grep "FILE_MANAGER='false'")
+        if [ -z "$FILE_MANAGER_CHECK" ]; then
+            echo "[ * ] Updating File Manager..."
+            # Reinstall the File Manager
+            $HESTIA/bin/v-delete-sys-filemanager quiet
+            $HESTIA/bin/v-add-sys-filemanager quiet
+        fi
+    fi
+}
+
+update_filemanager_configuration() {
+    if [ "$UPGRADE_UPDATE_FILEMANAGER_CONFIG" = "true" ]; then
+        FILE_MANAGER_CHECK=$(cat $HESTIA/conf/hestia.conf | grep "FILE_MANAGER='false'")
+        if [ -z "$FILE_MANAGER_CHECK" ]; then
+            if [ -e "$HESTIA/web/fm/configuration.php" ]; then
+                echo "[ * ] Updating File Manager configuration..."
+                # Update configuration.php
+                cp -f $HESTIA_INSTALL_DIR/filemanager/filegator/configuration.php $HESTIA/web/fm/configuration.php
+                # Set environment variable for interface
+                $HESTIA/bin/v-change-sys-config-value 'FILE_MANAGER' 'true'
+            fi
+        fi
+    fi
 }
 
 upgrade_get_version() {
@@ -250,55 +409,102 @@ upgrade_set_version() {
 }
 
 upgrade_rebuild_users() {
-    for user in $($HESTIA/bin/v-list-sys-users plain); do
-        echo "[ * ] Rebuilding domains and account for user: $user..."
-        if [ ! -z "$WEB_SYSTEM" ]; then
-            $BIN/v-rebuild-web-domains $user 'no' >/dev/null 2>&1
+    if [ "$UPGRADE_UPDATE_WEB_TEMPLATES" = "true" ] || [ "$UPGRADE_UPDATE_MAIL_TEMPLATES" = "true" ] || [ "$UPGRADE_UPDATE_DNS_TEMPLATES" = "true" ]; then
+        UPGRADE_REBUILD_USERS='true'
+        if [ "$UPGRADE_REBUILD_USERS" = "true" ]; then
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                echo "[ * ] Rebuilding user accounts and domains:"
+            else
+                echo "[ * ] Rebuilding user accounts and domains, this may take a few minutes..."
+            fi
+            for user in $($HESTIA/bin/v-list-sys-users plain); do
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                    echo "      - $user..."
+                fi
+                if [ ! -z "$WEB_SYSTEM" ]; then
+                    $BIN/v-rebuild-web-domains $user 'no' >/dev/null 2>&1
+                fi
+                if [ ! -z "$DNS_SYSTEM" ]; then
+                    $BIN/v-rebuild-dns-domains $user 'no' >/dev/null 2>&1
+                fi
+                if [ ! -z "$MAIL_SYSTEM" ]; then 
+                    $BIN/v-rebuild-mail-domains $user 'no' >/dev/null 2>&1
+                fi
+            done
         fi
-        if [ ! -z "$DNS_SYSTEM" ]; then
-            $BIN/v-rebuild-dns-domains $user 'no' >/dev/null 2>&1
-        fi
-        if [ ! -z "$MAIL_SYSTEM" ]; then 
-            $BIN/v-rebuild-mail-domains $user 'no' >/dev/null 2>&1
-        fi
-    done
+    fi
 }
 
 upgrade_restart_services() {
-    # Refresh user interface theme
-    if [ "$THEME" ]; then
-        if [ "$THEME" != "default" ]; then
-            echo "[ * ] Applying user interface updates..."
-            $BIN/v-change-sys-theme $THEME
-        fi
-    fi
+    if [ "$UPGRADE_UPDATE_WEB_TEMPLATES" = "true" ] || [ "$UPGRADE_UPDATE_MAIL_TEMPLATES" = "true" ] || [ "$UPGRADE_UPDATE_DNS_TEMPLATES" = "true" ]; then
+    UPGRADE_RESTART_SERVICES='true'
+        if [ "$UPGRADE_RESTART_SERVICES" = 'true' ]; then
+            # Refresh user interface theme
+            if [ "$THEME" ]; then
+                if [ "$THEME" != "default" ]; then
+                    echo "[ * ] Applying user interface updates..."
+                    $BIN/v-change-sys-theme $THEME
+                fi
+            fi
 
-    echo "[ * ] Restarting services..."
-    sleep 5
-    if [ ! -z "$MAIL_SYSTEM" ]; then
-        $BIN/v-restart-mail $restart
-    fi
-    if [ ! -z "$WEB_SYSTEM" ]; then
-        $BIN/v-restart-web $restart
-        $BIN/v-restart-proxy $restart
-    fi
-    if [ ! -z "$DNS_SYSTEM" ]; then
-        $BIN/v-restart-dns $restart
-    fi
-    for v in `ls /etc/php/`; do
-        if [ -e /etc/php/$v/fpm ]; then
-            $BIN/v-restart-service php$v-fpm $restart
+            echo "[ * ] Restarting services..."
+            sleep 5
+            if [ ! -z "$MAIL_SYSTEM" ]; then
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                    echo "      - $MAIL_SYSTEM"
+                fi
+                $BIN/v-restart-mail $restart
+            fi
+            if [ ! -z "$WEB_SYSTEM" ]; then
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                    echo "      - $WEB_SYSTEM"
+                fi
+                $BIN/v-restart-web $restart
+            fi
+            if [ ! -z "$PROXY_SYSTEM" ]; then
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                    echo "      - $PROXY_SYSTEM"
+                fi
+                $BIN/v-restart-proxy $restart
+            fi
+            if [ ! -z "$DNS_SYSTEM" ]; then
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                    echo "      - $DNS_SYSTEM"
+                fi
+                $BIN/v-restart-dns $restart
+            fi
+            for v in `ls /etc/php/`; do
+                if [ -e /etc/php/$v/fpm ]; then
+                    if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                        echo "      - php$v-fpm"
+                    fi
+                    $BIN/v-restart-service php$v-fpm $restart
+                fi
+            done
+            if [ ! -z "$FTP_SYSTEM" ]; then
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                    echo "      - $FTP_SYSTEM"
+                fi
+                $BIN/v-restart-ftp $restart
+            fi
+            if [ ! -z "$FIREWALL_EXTENSION" ]; then
+                if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                    echo "      - $FIREWALL_EXTENSION"
+                fi
+                $BIN/v-restart-service $FIREWALL_EXTENSION yes
+            fi
+            # Restart SSH daemon service
+            if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+                echo "      - sshd"
+            fi
+            $BIN/v-restart-service ssh $restart
         fi
-    done
-    if [ ! -z "$FTP_SYSTEM" ]; then
-        $BIN/v-restart-ftp $restart
-    fi
-    if [ ! -z "$FIREWALL_EXTENSION" ]; then
-        $BIN/v-restart-service $FIREWALL_EXTENSION yes
-    fi
 
-    # Restart SSH daemon and Hestia Control Panel service
-    $BIN/v-restart-service ssh $restart
-    $BIN/v-restart-service hestia $restart
+        # Always restart the Hestia Control Panel service
+        if [ "$UPGRADE_LOG_LEVEL" = "verbose" ]; then
+            echo "      - hestia"
+        fi
+        $BIN/v-restart-service hestia $restart
+    fi
 }
 

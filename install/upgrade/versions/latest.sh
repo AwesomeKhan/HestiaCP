@@ -3,6 +3,40 @@
 # Hestia Control Panel upgrade script for target version 1.2.0
 
 #######################################################################################
+#######                             Upgrade switches                            #######
+#######################################################################################
+
+# Logging and notifications
+UPGRADE_LOG_LEVEL='normal'
+UPGRADE_SAVE_LOG='true'
+UPGRADE_ADMIN_SEND_NOTIFICATION_PANEL='false'
+UPGRADE_ADMIN_SEND_NOTIFICATION_EMAIL='false'
+
+# Domain templates
+UPGRADE_UPDATE_WEB_TEMPLATES='false'
+UPGRADE_UPDATE_MAIL_TEMPLATES='false'
+UPGRADE_UPDATE_DNS_TEMPLATES='false'
+
+# phpMyAdmin
+UPGRADE_UPDATE_PHPMYADMIN='true'
+
+# File Manager
+UPGRADE_UPDATE_FILEMANAGER='false'
+UPGRADE_UPDATE_FILEMANAGER_CONFIG='false'
+
+# Post installation clean-up
+# NOTE: If domain templates are updated, these will override to true.
+UPGRADE_REBUILD_USERS='true'
+UPGRADE_RESTART_SERVICES='true'
+
+#######################################################################################
+#######                        3rd Party Software Updates                       #######
+#######################################################################################
+
+# phpMyAdmin
+pma_v='5.0.2'
+
+#######################################################################################
 #######                      Place additional commands below.                   #######
 #######################################################################################
 
@@ -132,23 +166,6 @@ if [ "$WEB_SYSTEM" = "apache2" ]; then
     a2dismod --quiet status > /dev/null 2>&1
     a2enmod --quiet hestia-status > /dev/null 2>&1
     rm --force /etc/apache2/mods-enabled/status.conf # a2dismod will not remove the file if it isn't a symlink
-fi
-
-# Install File Manager during upgrade if environment variable oesn't already exist and isn't set to false
-# so that we don't override preference
-FILE_MANAGER_CHECK=$(cat $HESTIA/conf/hestia.conf | grep "FILE_MANAGER='false'")
-if [ -z "$FILE_MANAGER_CHECK" ]; then
-    if [ ! -e "$HESTIA/web/fm/configuration.php" ]; then
-        echo "[ ! ] Installing File Manager..."
-        # Install the File Manager
-        $HESTIA/bin/v-add-sys-filemanager quiet
-    else 
-        echo "[ * ] Updating File Manager configuration..."
-        # Update configuration.php
-        cp -f $HESTIA_INSTALL_DIR/filemanager/filegator/configuration.php $HESTIA/web/fm/configuration.php
-        # Set environment variable for interface
-        $HESTIA/bin/v-change-sys-config-value 'FILE_MANAGER' 'true'
-    fi
 fi
 
 # Enable nginx module loading
