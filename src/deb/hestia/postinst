@@ -30,50 +30,101 @@ is_debug_build
 # Initialize backup directories
 upgrade_init_backup
 
-# Initialize logging
-upgrade_init_logging
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    # Initialize logging
+    upgrade_init_logging
+fi
 
 # Set up console display and welcome message
-upgrade_welcome_message_log >> $LOG
-upgrade_welcome_message
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    upgrade_welcome_message_log >> $LOG
+    upgrade_welcome_message
+else
+    upgrade_welcome_message
+fi
 
 # Back up existing configuration files and templates
-upgrade_start_backup | tee -a $LOG
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    upgrade_start_backup | tee -a $LOG
+else
+    upgrade_start_backup
+fi
 
 # Execute version-specific upgrade scripts
-upgrade_start_routine | tee -a $LOG
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    upgrade_start_routine | tee -a $LOG
+else
+    upgrade_start_routine
+fi
 
 # Upgrade File Manager and update configuration
-upgrade_filemanager | tee -a $LOG
-update_filemanager_configuration | tee -a $LOG
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    upgrade_filemanager | tee -a $LOG
+    update_filemanager_configuration | tee -a $LOG
+else
+    upgrade_filemanager
+    update_filemanager_configuration
+fi
 
 # Update Web domain templates
-update_web_templates | tee -a $LOG
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    update_web_templates | tee -a $LOG
+else
+    update_web_templates
+fi
 
 # Update Mail domain templates
-update_mail_templates | tee -a $LOG
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    update_mail_templates | tee -a $LOG
+else
+    update_mail_templates
+fi
 
-# Update DNS zone templastes
-update_dns_templates | tee -a $LOG
+# Update DNS zone templates
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    update_dns_templates | tee -a $LOG
+else
+    update_dns_templates
+fi
 
 # Upgrade phpMyAdmin if applicable
-upgrade_phpmyadmin | tee -a $LOG
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    upgrade_phpmyadmin | tee -a $LOG
+else
+    upgrade_phpmyadmin
+fi
 
 # Set new version number in hestia.conf
 upgrade_set_version $new_version
 
 # Perform account and domain rebuild to ensure configuration files are correct
-upgrade_rebuild_users | tee -a $LOG
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    upgrade_rebuild_users | tee -a $LOG
+else
+    upgrade_rebuild_users
+fi
 
 # Restart necessary services for changes to take full effect
-upgrade_restart_services | tee -a $LOG
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    upgrade_restart_services | tee -a $LOG
+else
+    upgrade_restart_services
+fi
 
 # Perform upgrade clean-up tasks
-upgrade_perform_cleanup | tee -a $LOG
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    upgrade_perform_cleanup | tee -a $LOG
+else
+    upgrade_perform_cleanup
+fi
 
 # Add upgrade notification to admin user's panel and display completion message
-upgrade_complete_message_log >> $LOG
-upgrade_complete_message
+if [ -z "$UPGRADE_SAVE_LOG" ] || [ "$UPGRADE_SAVE_LOG" = 'true' ]; then
+    upgrade_complete_message_log >> $LOG
+    upgrade_complete_message
+else
+    upgrade_complete_message
+fi
 
 # If setting variable is true, send the log to admin account's email address.
 upgrade_send_log_to_admin

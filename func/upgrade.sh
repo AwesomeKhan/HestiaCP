@@ -75,7 +75,7 @@ upgrade_welcome_message_log() {
 
 upgrade_complete_message() {
     # Add notification to panel if variable is set to true or is not set
-    if [ -z "$UPGRADE_ADMIN_SEND_NOTIFICATION_PANEL" ] || [ "$UPGRADE_ADMIN_SEND_NOTIFICATION_PANEL" = "true" ]; then 
+    if [ -z "$UPGRADE_SEND_NOTIFICATION" ] || [ "$UPGRADE_SEND_NOTIFICATION" = "true" ]; then 
         if [ "$RELEASE_BRANCH" != "beta" ] && [ "$DEBUG_MODE" = "true" ]; then
             # Send notifications for development releases
             $HESTIA/bin/v-add-user-notification admin 'Development build installed' '<b>Version:</b> '$new_version'.<br><b>Code Branch:</b> '$RELEASE_BRANCH'<br><br>Please tell us about any bugs or issues by opening an issue report on <a href="https://github.com/hestiacp/hestiacp/issues" target="_new"><i class="fab fa-github"></i> GitHub</a> and feel free to share your feedback on our <a href="https://forum.hestiacp.com" target="_new">discussion forum</a>.<br><br><i class="fas fa-heart status-icon red"></i> The Hestia Control Panel development team'
@@ -131,7 +131,7 @@ upgrade_step_message() {
 }
 
 upgrade_send_log_to_admin() {
-    if [ "$UPGRADE_ADMIN_SEND_NOTIFICATION_EMAIL" = "true" ]; then
+    if [ "$UPGRADE_SAVE_LOG" = "true" ] && [ "$UPGRADE_SEND_EMAIL" = "true" ]; then
         admin_email=$(v-list-user admin json | grep "CONTACT" | cut -d'"' -f4)
         send_mail="$HESTIA/web/inc/mail-wrapper.php"
         cat $LOG | $send_mail -s "Hestia Control Panel" $admin_email
